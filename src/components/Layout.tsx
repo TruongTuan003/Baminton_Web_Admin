@@ -15,6 +15,12 @@ import {
   ListItemText,
   useTheme,
   useMediaQuery,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -49,6 +55,7 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -66,9 +73,18 @@ export default function Layout({ children }: LayoutProps) {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogoutClick = () => {
+    setLogoutDialogOpen(true);
+  };
+
+  const handleLogoutConfirm = () => {
+    setLogoutDialogOpen(false);
     logout();
     navigate('/login');
+  };
+
+  const handleLogoutCancel = () => {
+    setLogoutDialogOpen(false);
   };
 
   const drawer = (
@@ -121,7 +137,7 @@ export default function Layout({ children }: LayoutProps) {
       <Divider />
       <List>
         <ListItem disablePadding>
-          <ListItemButton onClick={handleLogout} sx={{ color: 'error.main' }}>
+          <ListItemButton onClick={handleLogoutClick} sx={{ color: 'error.main' }}>
             <ListItemIcon sx={{ color: 'error.main' }}>
               <LogoutIcon />
             </ListItemIcon>
@@ -172,7 +188,7 @@ export default function Layout({ children }: LayoutProps) {
               {user.name}
             </Typography>
           )}
-          <IconButton color="inherit" onClick={handleLogout} sx={{ color: 'error.main' }}>
+          <IconButton color="inherit" onClick={handleLogoutClick} sx={{ color: 'error.main' }}>
             <LogoutIcon />
           </IconButton>
         </Toolbar>
@@ -225,6 +241,31 @@ export default function Layout({ children }: LayoutProps) {
         <Toolbar />
         {children}
       </Box>
+
+      {/* Dialog xác nhận đăng xuất */}
+      <Dialog
+        open={logoutDialogOpen}
+        onClose={handleLogoutCancel}
+        aria-labelledby="logout-dialog-title"
+        aria-describedby="logout-dialog-description"
+      >
+        <DialogTitle id="logout-dialog-title">
+          Xác nhận đăng xuất
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="logout-dialog-description">
+            Bạn có chắc chắn muốn đăng xuất khỏi hệ thống?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleLogoutCancel} color="inherit">
+            Hủy
+          </Button>
+          <Button onClick={handleLogoutConfirm} color="error" variant="contained" autoFocus>
+            Đăng xuất
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
