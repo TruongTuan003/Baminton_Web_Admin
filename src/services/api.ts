@@ -16,6 +16,10 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Nếu là FormData, không set Content-Type để browser tự động set với boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
     return config;
   },
   (error) => {
@@ -46,7 +50,7 @@ export const userAPI = {
   getAllUsers: () => api.get('/user/all'),
   getUserById: (id: string) => api.get(`/user/${id}`),
   updateUser: (id: string, data: any) => api.put(`/user/${id}`, data),
-  deleteUser: (id: string) => api.delete(`/user/${id}`),
+  lockUser: (id: string, action: 'lock' | 'unlock') => api.put(`/user/${id}/lock`, { action }),
   getStatistics: () => api.get('/user/statistics'),
   getDashboardStatistics: () => api.get('/user/dashboard'),
   getSystemStatistics: () => api.get('/user/system-statistics'),
@@ -57,8 +61,8 @@ export const trainingAPI = {
   getTrainingById: (id: string) => api.get(`/trainings/${id}`),
   getByLevel: (level: string) => api.get(`/trainings/level/${encodeURIComponent(level)}`),
   getByGoal: (goal: string) => api.get(`/trainings/goal/${encodeURIComponent(goal)}`),
-  createTraining: (data: any) => api.post('/trainings', data),
-  updateTraining: (id: string, data: any) => api.put(`/trainings/${id}`, data),
+  createTraining: (data: FormData | any) => api.post('/trainings', data),
+  updateTraining: (id: string, data: FormData | any) => api.put(`/trainings/${id}`, data),
   deleteTraining: (id: string) => api.delete(`/trainings/${id}`),
 };
 
@@ -66,8 +70,8 @@ export const mealAPI = {
   getAllMeals: () => api.get('/meals'),
   getMealById: (id: string) => api.get(`/meals/${id}`),
   getMealsByGoal: (goal: string) => api.get(`/meals/goal/${encodeURIComponent(goal)}`),
-  createMeal: (data: any) => api.post('/meals', data),
-  updateMeal: (id: string, data: any) => api.put(`/meals/${id}`, data),
+  createMeal: (data: FormData | any) => api.post('/meals', data),
+  updateMeal: (id: string, data: FormData | any) => api.put(`/meals/${id}`, data),
   deleteMeal: (id: string) => api.delete(`/meals/${id}`),
 };
 

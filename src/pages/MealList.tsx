@@ -13,6 +13,7 @@ import {
   CircularProgress,
   MenuItem,
   Chip,
+  Snackbar,
 } from '@mui/material';
 import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid';
 import type { GridColDef } from '@mui/x-data-grid';
@@ -53,7 +54,11 @@ export default function MealList() {
     description: '',
     image_url: '',
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [searchName, setSearchName] = useState('');
   const [filterMealType, setFilterMealType] = useState('');
   const [availableMealTypes, setAvailableMealTypes] = useState<string[]>([]);
@@ -127,7 +132,22 @@ export default function MealList() {
       description: meal.description || '',
       image_url: meal.image_url || '',
     });
+    setImageFile(null);
+    setImagePreview(meal.image_url || null);
     setOpenDialog(true);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      // Tạo preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -148,31 +168,95 @@ export default function MealList() {
   const handleSave = async () => {
     try {
       setError('');
-      const mealData = {
-        name: formData.name,
-        mealType: formData.mealType,
-        calories: formData.calories ? Number(formData.calories) : undefined,
-        protein: formData.protein ? Number(formData.protein) : undefined,
-        fat: formData.fat ? Number(formData.fat) : undefined,
-        carbs: formData.carbs ? Number(formData.carbs) : undefined,
-        goal: formData.goal || undefined,
-        description: formData.description || undefined,
-        image_url: formData.image_url || undefined,
-      };
+      
+      // Validation: Kiểm tra tất cả các field bắt buộc
+      if (!formData.name?.trim()) {
+        setError('Vui lòng nhập tên món ăn');
+        return;
+      }
+      if (!formData.mealType?.trim()) {
+        setError('Vui lòng chọn loại bữa');
+        return;
+      }
+      if (!formData.goal?.trim()) {
+        setError('Vui lòng chọn mục tiêu');
+        return;
+      }
+      if (!formData.calories || Number(formData.calories) <= 0) {
+        setError('Vui lòng nhập calories hợp lệ');
+        return;
+      }
+      if (!formData.protein || Number(formData.protein) < 0) {
+        setError('Vui lòng nhập đạm (g) hợp lệ');
+        return;
+      }
+      if (!formData.fat || Number(formData.fat) < 0) {
+        setError('Vui lòng nhập chất béo (g) hợp lệ');
+        return;
+      }
+      if (!formData.carbs || Number(formData.carbs) < 0) {
+        setError('Vui lòng nhập tinh bột (g) hợp lệ');
+        return;
+      }
+      if (!formData.description?.trim()) {
+        setError('Vui lòng nhập mô tả');
+        return;
+      }
+      // Kiểm tra hình ảnh: bắt buộc khi tạo mới, khi edit có thể giữ nguyên
+      if (!selectedMeal) {
+        if (!imageFile && !formData.image_url) {
+          setError('Vui lòng chọn hình ảnh hoặc nhập URL hình ảnh');
+          return;
+        }
+      }
+      
+      setUploading(true);
+
+      // Tạo FormData
+      const formDataToSend = new FormData();
+      formDataToSend.append('name', formData.name.trim());
+      formDataToSend.append('mealType', formData.mealType.trim());
+      formDataToSend.append('calories', formData.calories);
+      formDataToSend.append('protein', formData.protein);
+      formDataToSend.append('fat', formData.fat);
+      formDataToSend.append('carbs', formData.carbs);
+      formDataToSend.append('goal', formData.goal.trim());
+      formDataToSend.append('description', formData.description.trim());
+
+      // Thêm file nếu có
+      if (imageFile) {
+        formDataToSend.append('image', imageFile);
+      } else if (formData.image_url && !selectedMeal) {
+        // Nếu không có file mới nhưng có URL (cho trường hợp tạo mới với URL)
+        formDataToSend.append('image_url', formData.image_url);
+      }
+
+      // Nếu đang edit và không có file mới, giữ nguyên URL cũ
+      if (selectedMeal) {
+        if (!imageFile && formData.image_url) {
+          formDataToSend.append('image_url', formData.image_url);
+        }
+      }
 
       if (selectedMeal) {
-        await mealAPI.updateMeal(selectedMeal._id, mealData);
+        await mealAPI.updateMeal(selectedMeal._id, formDataToSend);
+        setSuccessMessage('Cập nhật món ăn thành công!');
         await fetchMeals(); // Refresh danh sách
       } else {
-        await mealAPI.createMeal(mealData);
+        await mealAPI.createMeal(formDataToSend);
+        setSuccessMessage('Thêm món ăn thành công!');
         await fetchMeals(); // Refresh danh sách
       }
       setOpenDialog(false);
       setSelectedMeal(null);
       setFormData({ name: '', calories: '', protein: '', fat: '', carbs: '', mealType: '', goal: '', description: '', image_url: '' });
+      setImageFile(null);
+      setImagePreview(null);
     } catch (err: any) {
       const errorMessage = err?.response?.data?.message || err?.message || 'Không thể lưu thông tin';
       setError(errorMessage);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -238,6 +322,8 @@ export default function MealList() {
           onClick={() => {
             setSelectedMeal(null);
             setFormData({ name: '', calories: '', protein: '', fat: '', carbs: '', mealType: '', goal: '', description: '', image_url: '' });
+            setImageFile(null);
+            setImagePreview(null);
             setOpenDialog(true);
           }}
         >
@@ -250,6 +336,17 @@ export default function MealList() {
           {error}
         </Alert>
       )}
+
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={3000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setSuccessMessage('')} severity="success" sx={{ width: '100%' }}>
+          {successMessage}
+        </Alert>
+      </Snackbar>
 
       {/* Hàng tìm kiếm và lọc */}
       <Paper sx={{ p: 2, mb: 2 }}>
@@ -315,8 +412,9 @@ export default function MealList() {
           <TextField
             autoFocus
             margin="dense"
-            label="Tên món ăn"
+            label="Tên món ăn *"
             fullWidth
+            required
             variant="outlined"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -325,40 +423,48 @@ export default function MealList() {
           <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
             <TextField
               margin="dense"
-              label="Calories"
+              label="Calories *"
               type="number"
+              required
               variant="outlined"
               value={formData.calories}
               onChange={(e) => setFormData({ ...formData, calories: e.target.value })}
+              inputProps={{ min: 1 }}
               sx={{ flex: 1 }}
             />
             <TextField
               margin="dense"
-              label="Đạm (g)"
+              label="Đạm (g) *"
               type="number"
+              required
               variant="outlined"
               value={formData.protein}
               onChange={(e) => setFormData({ ...formData, protein: e.target.value })}
+              inputProps={{ min: 0 }}
               sx={{ flex: 1 }}
             />
           </Box>
           <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
             <TextField
               margin="dense"
-              label="Chất béo (g)"
+              label="Chất béo (g) *"
               type="number"
+              required
               variant="outlined"
               value={formData.fat}
               onChange={(e) => setFormData({ ...formData, fat: e.target.value })}
+              inputProps={{ min: 0 }}
               sx={{ flex: 1 }}
             />
             <TextField
               margin="dense"
-              label="Tinh bột (g)"
+              label="Tinh bột (g) *"
               type="number"
+              required
               variant="outlined"
               value={formData.carbs}
               onChange={(e) => setFormData({ ...formData, carbs: e.target.value })}
+              inputProps={{ min: 0 }}
               sx={{ flex: 1 }}
             />
           </Box>
@@ -393,15 +499,47 @@ export default function MealList() {
             <MenuItem value="Tăng cơ">Tăng cơ</MenuItem>
             <MenuItem value="Duy trì sức khỏe">Duy trì sức khỏe</MenuItem>
           </TextField>
-          <TextField
-            margin="dense"
-            label="URL Hình ảnh"
-            fullWidth
-            variant="outlined"
-            value={formData.image_url}
-            onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-            sx={{ mb: 2 }}
-          />
+          {/* Upload Hình ảnh */}
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+              Hình ảnh *
+            </Typography>
+            <Button
+              variant="outlined"
+              component="label"
+              fullWidth
+              sx={{ mb: 1 }}
+            >
+              {imageFile ? 'Đổi hình ảnh' : 'Chọn hình ảnh'}
+              <input
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={handleImageChange}
+              />
+            </Button>
+            {imagePreview && (
+              <Box sx={{ mt: 1 }}>
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px' }}
+                />
+              </Box>
+            )}
+            {!imageFile && !imagePreview && (
+              <TextField
+                margin="dense"
+                label="Hoặc nhập URL hình ảnh"
+                fullWidth
+                variant="outlined"
+                size="small"
+                value={formData.image_url}
+                onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                sx={{ mt: 1 }}
+              />
+            )}
+          </Box>
           <TextField
             margin="dense"
             label="Mô tả"
@@ -414,9 +552,11 @@ export default function MealList() {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Hủy</Button>
-          <Button onClick={handleSave} variant="contained">
-            Lưu
+          <Button onClick={() => setOpenDialog(false)} disabled={uploading}>
+            Hủy
+          </Button>
+          <Button onClick={handleSave} variant="contained" disabled={uploading}>
+            {uploading ? <CircularProgress size={20} /> : 'Lưu'}
           </Button>
         </DialogActions>
       </Dialog>
