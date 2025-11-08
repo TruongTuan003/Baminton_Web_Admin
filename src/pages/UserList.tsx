@@ -4,7 +4,6 @@ import {
   Typography,
   Paper,
   Button,
-  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -12,12 +11,14 @@ import {
   TextField,
   Alert,
   CircularProgress,
+  Chip,
+  Snackbar,
 } from '@mui/material';
 import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid';
 import type { GridColDef } from '@mui/x-data-grid';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { userAPI } from '../services/api';
 
 interface User {
@@ -40,8 +41,8 @@ export default function UserList() {
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     fetchUsers();
@@ -62,44 +63,28 @@ export default function UserList() {
     }
   };
 
-  const handleEdit = (user: User) => {
+  const handleViewUser = (user: User) => {
     setSelectedUser(user);
-    setFormData({ name: user.name, email: user.email, phone: user.phone || '' });
     setOpenDialog(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Bạn có chắc muốn xóa người dùng này?')) {
+  const handleLockUser = async (id: string, currentStatus: string) => {
+    const action = currentStatus === 'lock' ? 'unlock' : 'lock';
+    const actionText = action === 'lock' ? 'khóa' : 'mở khóa';
+    
+    if (window.confirm(`Bạn có chắc muốn ${actionText} người dùng này?`)) {
       try {
-        await userAPI.deleteUser(id);
-        setUsers(users.filter((u) => u._id !== id));
+        await userAPI.lockUser(id, action);
+        setSuccessMessage(`${actionText === 'khóa' ? 'Khóa' : 'Mở khóa'} người dùng thành công!`);
+        await fetchUsers(); // Refresh danh sách
         setError('');
       } catch (err: any) {
-        const errorMessage = err?.response?.data?.message || err?.message || 'Không thể xóa người dùng';
+        const errorMessage = err?.response?.data?.message || err?.message || `Không thể ${actionText} người dùng`;
         setError(errorMessage);
       }
     }
   };
 
-  const handleSave = async () => {
-    try {
-      setError('');
-      if (selectedUser) {
-        await userAPI.updateUser(selectedUser._id, formData);
-        await fetchUsers(); // Refresh danh sách
-      } else {
-        // Note: Backend không có API tạo user mới từ admin, có thể cần tạo sau
-        setError('Chức năng thêm người dùng mới chưa được hỗ trợ. Vui lòng sử dụng chức năng đăng ký.');
-        return;
-      }
-      setOpenDialog(false);
-      setSelectedUser(null);
-      setFormData({ name: '', email: '', phone: '' });
-    } catch (err: any) {
-      const errorMessage = err?.response?.data?.message || err?.message || 'Không thể lưu thông tin';
-      setError(errorMessage);
-    }
-  };
 
   const columns: GridColDef[] = [
     { field: '_id', headerName: 'ID', width: 90 },
@@ -107,7 +92,17 @@ export default function UserList() {
     { field: 'email', headerName: 'Email', width: 250, flex: 1 },
     { field: 'phone', headerName: 'Số điện thoại', width: 150 },
     { field: 'role', headerName: 'Vai trò', width: 120 },
-    { field: 'status', headerName: 'Trạng thái', width: 120 },
+    {
+      field: 'status',
+      headerName: 'Trạng thái',
+      width: 120,
+      renderCell: (params) => {
+        const status = params.value || 'pending';
+        const color = status === 'lock' ? 'error' : status === 'active' ? 'success' : 'warning';
+        const label = status === 'lock' ? 'Khóa' : status === 'active' ? 'Hoạt động' : 'Chờ xác thực';
+        return <Chip label={label} size="small" color={color} variant="outlined" />;
+      },
+    },
     {
       field: 'createdAt',
       headerName: 'Ngày tạo',
@@ -126,19 +121,24 @@ export default function UserList() {
       type: 'actions',
       headerName: 'Thao tác',
       width: 120,
-      getActions: (params) => [
-        <GridActionsCellItem
-          icon={<EditIcon />}
-          label="Sửa"
-          onClick={() => handleEdit(params.row)}
-        />,
-        <GridActionsCellItem
-          icon={<DeleteIcon />}
-          label="Xóa"
-          onClick={() => handleDelete(params.row._id)}
-          showInMenu
-        />,
-      ],
+      getActions: (params) => {
+        const status = params.row.status || 'pending';
+        const isLocked = status === 'lock';
+        
+        return [
+          <GridActionsCellItem
+            icon={<VisibilityIcon />}
+            label="Xem chi tiết"
+            onClick={() => handleViewUser(params.row)}
+          />,
+          <GridActionsCellItem
+            icon={isLocked ? <LockOpenIcon /> : <LockIcon />}
+            label={isLocked ? 'Mở khóa' : 'Khóa'}
+            onClick={() => handleLockUser(params.row._id, status)}
+            showInMenu
+          />,
+        ];
+      },
     },
   ];
 
@@ -148,17 +148,6 @@ export default function UserList() {
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
           Danh sách người dùng
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => {
-            setSelectedUser(null);
-            setFormData({ name: '', email: '', phone: '' });
-            setOpenDialog(true);
-          }}
-        >
-          Thêm người dùng
-        </Button>
       </Box>
 
       {error && (
@@ -166,6 +155,17 @@ export default function UserList() {
           {error}
         </Alert>
       )}
+
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={3000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setSuccessMessage('')} severity="success" sx={{ width: '100%' }}>
+          {successMessage}
+        </Alert>
+      </Snackbar>
 
       <Paper sx={{ height: 600, width: '100%' }}>
         {loading ? (
@@ -193,41 +193,127 @@ export default function UserList() {
       </Paper>
 
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{selectedUser ? 'Sửa người dùng' : 'Thêm người dùng mới'}</DialogTitle>
+        <DialogTitle>Thông tin người dùng</DialogTitle>
         <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Tên"
-            fullWidth
-            variant="outlined"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            label="Email"
-            type="email"
-            fullWidth
-            variant="outlined"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            label="Số điện thoại"
-            fullWidth
-            variant="outlined"
-            value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-          />
+          {selectedUser && (
+            <Box sx={{ pt: 2 }}>
+              <TextField
+                margin="dense"
+                label="Tên"
+                fullWidth
+                variant="outlined"
+                value={selectedUser.name || ''}
+                InputProps={{ readOnly: true }}
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                margin="dense"
+                label="Email"
+                type="email"
+                fullWidth
+                variant="outlined"
+                value={selectedUser.email || ''}
+                InputProps={{ readOnly: true }}
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                margin="dense"
+                label="Số điện thoại"
+                fullWidth
+                variant="outlined"
+                value={selectedUser.phone || ''}
+                InputProps={{ readOnly: true }}
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                margin="dense"
+                label="Vai trò"
+                fullWidth
+                variant="outlined"
+                value={selectedUser.role || ''}
+                InputProps={{ readOnly: true }}
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                margin="dense"
+                label="Trạng thái"
+                fullWidth
+                variant="outlined"
+                value={
+                  selectedUser.status === 'lock' 
+                    ? 'Khóa' 
+                    : selectedUser.status === 'active' 
+                    ? 'Hoạt động' 
+                    : 'Chờ xác thực'
+                }
+                InputProps={{ readOnly: true }}
+                sx={{ mb: 2 }}
+              />
+              {selectedUser.age && (
+                <TextField
+                  margin="dense"
+                  label="Tuổi"
+                  type="number"
+                  fullWidth
+                  variant="outlined"
+                  value={selectedUser.age}
+                  InputProps={{ readOnly: true }}
+                  sx={{ mb: 2 }}
+                />
+              )}
+              {selectedUser.gender && (
+                <TextField
+                  margin="dense"
+                  label="Giới tính"
+                  fullWidth
+                  variant="outlined"
+                  value={selectedUser.gender}
+                  InputProps={{ readOnly: true }}
+                  sx={{ mb: 2 }}
+                />
+              )}
+              {selectedUser.height && (
+                <TextField
+                  margin="dense"
+                  label="Chiều cao (cm)"
+                  type="number"
+                  fullWidth
+                  variant="outlined"
+                  value={selectedUser.height}
+                  InputProps={{ readOnly: true }}
+                  sx={{ mb: 2 }}
+                />
+              )}
+              {selectedUser.weight && (
+                <TextField
+                  margin="dense"
+                  label="Cân nặng (kg)"
+                  type="number"
+                  fullWidth
+                  variant="outlined"
+                  value={selectedUser.weight}
+                  InputProps={{ readOnly: true }}
+                  sx={{ mb: 2 }}
+                />
+              )}
+              <TextField
+                margin="dense"
+                label="Ngày tạo"
+                fullWidth
+                variant="outlined"
+                value={
+                  selectedUser.createdAt
+                    ? new Date(selectedUser.createdAt).toLocaleDateString('vi-VN')
+                    : ''
+                }
+                InputProps={{ readOnly: true }}
+              />
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Hủy</Button>
-          <Button onClick={handleSave} variant="contained">
-            Lưu
+          <Button onClick={() => setOpenDialog(false)} variant="contained">
+            Đóng
           </Button>
         </DialogActions>
       </Dialog>
