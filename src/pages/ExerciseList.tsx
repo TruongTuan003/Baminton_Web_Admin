@@ -13,6 +13,11 @@ import {
   CircularProgress,
   MenuItem,
   Chip,
+  Snackbar,
+  IconButton,
+  List,
+  ListItem,
+  ListItemText,
 } from '@mui/material';
 import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid';
 import type { GridColDef } from '@mui/x-data-grid';
@@ -20,6 +25,9 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SearchIcon from '@mui/icons-material/Search';
+import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { trainingAPI } from '../services/api';
 
 interface Exercise {
@@ -31,6 +39,7 @@ interface Exercise {
   video_url?: string;
   image_url?: string;
   duration_minutes?: number;
+  step?: string[];
   createdAt: string;
 }
 
@@ -49,7 +58,14 @@ export default function ExerciseList() {
     image_url: '',
     duration_minutes: '',
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [steps, setSteps] = useState<string[]>([]); // Mảng các bước (chỉ chứa mô tả, không có số thứ tự)
   const [searchName, setSearchName] = useState('');
   const [filterGoal, setFilterGoal] = useState('');
   const [filterLevel, setFilterLevel] = useState('');
@@ -139,6 +155,28 @@ export default function ExerciseList() {
       image_url: exercise.image_url || '',
       duration_minutes: exercise.duration_minutes ? String(exercise.duration_minutes) : '',
     });
+    setImageFile(null);
+    setVideoFile(null);
+    setImagePreview(exercise.image_url || null);
+    setVideoPreview(exercise.video_url || null);
+    // Step đã là mảng string thuần (không có số thứ tự), sử dụng trực tiếp
+    if (exercise.step && Array.isArray(exercise.step)) {
+      // Nếu có format "số: mô tả" (dữ liệu cũ), parse để lấy phần mô tả
+      const parsedSteps = exercise.step.map((s) => {
+        if (typeof s === 'string' && s.includes(':')) {
+          // Lấy phần sau dấu ":" (có thể có nhiều dấu ":" trong mô tả)
+          const match = s.match(/^\d+:\s*(.+)$/);
+          if (match) {
+            return match[1].trim();
+          }
+          return s.split(':').slice(1).join(':').trim();
+        }
+        return s;
+      });
+      setSteps(parsedSteps);
+    } else {
+      setSteps([]);
+    }
     setOpenDialog(true);
   };
 
@@ -157,32 +195,170 @@ export default function ExerciseList() {
     }
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      // Tạo preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setVideoFile(file);
+      // Tạo preview cho video
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setVideoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Quản lý các bước
+  const [newStep, setNewStep] = useState('');
+
+  const handleAddStep = () => {
+    if (newStep.trim()) {
+      setSteps([...steps, newStep.trim()]);
+      setNewStep('');
+    }
+  };
+
+  const handleRemoveStep = (index: number) => {
+    setSteps(steps.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateStep = (index: number, value: string) => {
+    const updatedSteps = [...steps];
+    updatedSteps[index] = value;
+    setSteps(updatedSteps);
+  };
+
+  const handleMoveStep = (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index > 0) {
+      const updatedSteps = [...steps];
+      [updatedSteps[index - 1], updatedSteps[index]] = [updatedSteps[index], updatedSteps[index - 1]];
+      setSteps(updatedSteps);
+    } else if (direction === 'down' && index < steps.length - 1) {
+      const updatedSteps = [...steps];
+      [updatedSteps[index], updatedSteps[index + 1]] = [updatedSteps[index + 1], updatedSteps[index]];
+      setSteps(updatedSteps);
+    }
+  };
+
   const handleSave = async () => {
     try {
       setError('');
-      const trainingData = {
-        title: formData.title,
-        goal: formData.goal || undefined,
-        level: formData.level,
-        description: formData.description || undefined,
-        video_url: formData.video_url || undefined,
-        image_url: formData.image_url || undefined,
-        duration_minutes: formData.duration_minutes ? Number(formData.duration_minutes) : undefined,
-      };
+      
+      // Validation: Kiểm tra tất cả các field bắt buộc
+      if (!formData.title?.trim()) {
+        setError('Vui lòng nhập tiêu đề');
+        return;
+      }
+      if (!formData.goal?.trim()) {
+        setError('Vui lòng chọn mục tiêu');
+        return;
+      }
+      if (!formData.level?.trim()) {
+        setError('Vui lòng chọn cấp độ');
+        return;
+      }
+      if (!formData.description?.trim()) {
+        setError('Vui lòng nhập mô tả');
+        return;
+      }
+      if (!formData.duration_minutes || Number(formData.duration_minutes) <= 0) {
+        setError('Vui lòng nhập thời gian (phút) hợp lệ');
+        return;
+      }
+      if (steps.length === 0) {
+        setError('Vui lòng thêm ít nhất một bước thực hiện');
+        return;
+      }
+      // Kiểm tra hình ảnh: bắt buộc khi tạo mới, khi edit có thể giữ nguyên
+      if (!selectedExercise) {
+        if (!imageFile && !formData.image_url) {
+          setError('Vui lòng chọn hình ảnh hoặc nhập URL hình ảnh');
+          return;
+        }
+        if (!videoFile && !formData.video_url) {
+          setError('Vui lòng chọn video hoặc nhập URL video');
+          return;
+        }
+      }
+      
+      setUploading(true);
+
+      // Tạo FormData
+      const formDataToSend = new FormData();
+      formDataToSend.append('title', formData.title.trim());
+      formDataToSend.append('goal', formData.goal.trim());
+      formDataToSend.append('level', formData.level.trim());
+      formDataToSend.append('description', formData.description.trim());
+      formDataToSend.append('duration_minutes', formData.duration_minutes);
+      
+      // Thêm steps (gửi dưới dạng mảng string)
+      if (steps.length > 0) {
+        steps.forEach((step, index) => {
+          formDataToSend.append(`step[${index}]`, step);
+        });
+      }
+
+      // Thêm file nếu có
+      if (imageFile) {
+        formDataToSend.append('image', imageFile);
+      } else if (formData.image_url && !selectedExercise) {
+        // Nếu không có file mới nhưng có URL (cho trường hợp tạo mới với URL)
+        formDataToSend.append('image_url', formData.image_url);
+      }
+
+      if (videoFile) {
+        formDataToSend.append('video', videoFile);
+      } else if (formData.video_url && !selectedExercise) {
+        // Nếu không có file mới nhưng có URL (cho trường hợp tạo mới với URL)
+        formDataToSend.append('video_url', formData.video_url);
+      }
+
+      // Nếu đang edit và không có file mới, giữ nguyên URL cũ
+      if (selectedExercise) {
+        if (!imageFile && formData.image_url) {
+          formDataToSend.append('image_url', formData.image_url);
+        }
+        if (!videoFile && formData.video_url) {
+          formDataToSend.append('video_url', formData.video_url);
+        }
+      }
 
       if (selectedExercise) {
-        await trainingAPI.updateTraining(selectedExercise._id, trainingData);
+        await trainingAPI.updateTraining(selectedExercise._id, formDataToSend);
+        setSuccessMessage('Cập nhật bài tập thành công!');
         await fetchExercises(); // Refresh danh sách
       } else {
-        await trainingAPI.createTraining(trainingData);
+        await trainingAPI.createTraining(formDataToSend);
+        setSuccessMessage('Thêm bài tập thành công!');
         await fetchExercises(); // Refresh danh sách
       }
       setOpenDialog(false);
       setSelectedExercise(null);
       setFormData({ title: '', goal: '', level: '', description: '', video_url: '', image_url: '', duration_minutes: '' });
+      setImageFile(null);
+      setVideoFile(null);
+      setImagePreview(null);
+      setVideoPreview(null);
+      setSteps([]);
+      setNewStep('');
     } catch (err: any) {
       const errorMessage = err?.response?.data?.message || err?.message || 'Không thể lưu thông tin';
       setError(errorMessage);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -260,6 +436,12 @@ export default function ExerciseList() {
           onClick={() => {
             setSelectedExercise(null);
             setFormData({ title: '', goal: '', level: '', description: '', video_url: '', image_url: '', duration_minutes: '' });
+            setImageFile(null);
+            setVideoFile(null);
+            setImagePreview(null);
+            setVideoPreview(null);
+            setSteps([]);
+            setNewStep('');
             setOpenDialog(true);
           }}
         >
@@ -272,6 +454,17 @@ export default function ExerciseList() {
           {error}
         </Alert>
       )}
+
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={3000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setSuccessMessage('')} severity="success" sx={{ width: '100%' }}>
+          {successMessage}
+        </Alert>
+      </Snackbar>
 
       {/* Hàng tìm kiếm và lọc */}
       <Paper sx={{ p: 2, mb: 2 }}>
@@ -362,18 +555,18 @@ export default function ExerciseList() {
           />
           <TextField
             margin="dense"
-            label="Mục tiêu"
+            label="Mục tiêu *"
             fullWidth
+            required
             select
             variant="outlined"
             value={formData.goal}
             onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
             sx={{ mb: 2 }}
           >
-            <MenuItem value="Tăng sức mạnh">Tăng sức mạnh</MenuItem>
-            <MenuItem value="Tăng tốc độ">Tăng tốc độ</MenuItem>
-            <MenuItem value="Giảm cân">Giảm cân</MenuItem>
-            <MenuItem value="Tăng cơ">Tăng cơ</MenuItem>
+            <MenuItem value="Nâng cao kỹ năng cầu lông">Nâng cao kỹ năng cầu lông</MenuItem>
+            <MenuItem value="Cải thiện thể chất">Cải thiện thể chất</MenuItem>
+            <MenuItem value="Quản lý thể hình và sức khỏe">Quản lý thể hình và sức khỏe</MenuItem>
           </TextField>
           <TextField
             margin="dense"
@@ -392,18 +585,21 @@ export default function ExerciseList() {
           </TextField>
           <TextField
             margin="dense"
-            label="Thời gian (phút)"
+            label="Thời gian (phút) *"
             type="number"
             fullWidth
+            required
             variant="outlined"
             value={formData.duration_minutes}
             onChange={(e) => setFormData({ ...formData, duration_minutes: e.target.value })}
+            inputProps={{ min: 1 }}
             sx={{ mb: 2 }}
           />
           <TextField
             margin="dense"
-            label="Mô tả"
+            label="Mô tả *"
             fullWidth
+            required
             multiline
             rows={3}
             variant="outlined"
@@ -411,28 +607,187 @@ export default function ExerciseList() {
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             sx={{ mb: 2 }}
           />
-          <TextField
-            margin="dense"
-            label="URL Video"
-            fullWidth
-            variant="outlined"
-            value={formData.video_url}
-            onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            label="URL Hình ảnh"
-            fullWidth
-            variant="outlined"
-            value={formData.image_url}
-            onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-          />
+          
+          {/* Quản lý các bước */}
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+              Các bước thực hiện *
+            </Typography>
+            
+            {/* Danh sách các bước */}
+            {steps.length > 0 && (
+              <List sx={{ mb: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                {steps.map((step, index) => (
+                  <ListItem
+                    key={index}
+                    sx={{
+                      borderBottom: index < steps.length - 1 ? '1px solid' : 'none',
+                      borderColor: 'divider',
+                      py: 1,
+                    }}
+                    secondaryAction={
+                      <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        <IconButton
+                          edge="end"
+                          size="small"
+                          onClick={() => handleMoveStep(index, 'up')}
+                          disabled={index === 0}
+                        >
+                          <ArrowUpwardIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          edge="end"
+                          size="small"
+                          onClick={() => handleMoveStep(index, 'down')}
+                          disabled={index === steps.length - 1}
+                        >
+                          <ArrowDownwardIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          edge="end"
+                          size="small"
+                          onClick={() => handleRemoveStep(index)}
+                          color="error"
+                        >
+                          <RemoveCircleOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    }
+                  >
+                    <ListItemText
+                      primary={
+                        <TextField
+                          fullWidth
+                          size="small"
+                          value={step}
+                          onChange={(e) => handleUpdateStep(index, e.target.value)}
+                          placeholder={`Bước ${index + 1}`}
+                          variant="outlined"
+                        />
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            )}
+            
+            {/* Thêm bước mới */}
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Nhập mô tả bước mới..."
+                value={newStep}
+                onChange={(e) => setNewStep(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddStep();
+                  }
+                }}
+                variant="outlined"
+              />
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={handleAddStep}
+                disabled={!newStep.trim()}
+              >
+                Thêm
+              </Button>
+            </Box>
+          </Box>
+          
+          {/* Upload Hình ảnh */}
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+              Hình ảnh *
+            </Typography>
+            <Button
+              variant="outlined"
+              component="label"
+              fullWidth
+              sx={{ mb: 1 }}
+            >
+              {imageFile ? 'Đổi hình ảnh' : 'Chọn hình ảnh'}
+              <input
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={handleImageChange}
+              />
+            </Button>
+            {imagePreview && (
+              <Box sx={{ mt: 1 }}>
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px' }}
+                />
+              </Box>
+            )}
+            {!imageFile && !imagePreview && (
+              <TextField
+                margin="dense"
+                label="Hoặc nhập URL hình ảnh"
+                fullWidth
+                variant="outlined"
+                size="small"
+                value={formData.image_url}
+                onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                sx={{ mt: 1 }}
+              />
+            )}
+          </Box>
+
+          {/* Upload Video */}
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+              Video *
+            </Typography>
+            <Button
+              variant="outlined"
+              component="label"
+              fullWidth
+              sx={{ mb: 1 }}
+            >
+              {videoFile ? 'Đổi video' : 'Chọn video'}
+              <input
+                type="file"
+                hidden
+                accept="video/*"
+                onChange={handleVideoChange}
+              />
+            </Button>
+            {videoPreview && (
+              <Box sx={{ mt: 1 }}>
+                <video
+                  src={videoPreview}
+                  controls
+                  style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px' }}
+                />
+              </Box>
+            )}
+            {!videoFile && !videoPreview && (
+              <TextField
+                margin="dense"
+                label="Hoặc nhập URL video"
+                fullWidth
+                variant="outlined"
+                size="small"
+                value={formData.video_url}
+                onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                sx={{ mt: 1 }}
+              />
+            )}
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Hủy</Button>
-          <Button onClick={handleSave} variant="contained">
-            Lưu
+          <Button onClick={() => setOpenDialog(false)} disabled={uploading}>
+            Hủy
+          </Button>
+          <Button onClick={handleSave} variant="contained" disabled={uploading}>
+            {uploading ? <CircularProgress size={20} /> : 'Lưu'}
           </Button>
         </DialogActions>
       </Dialog>
