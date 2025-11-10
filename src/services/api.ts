@@ -75,5 +75,13 @@ export const mealAPI = {
   deleteMeal: (id: string) => api.delete(`/meals/${id}`),
 };
 
+export const mealPlanAPI = {
+  getAllMealPlans: () => api.get('/meal-plans'),
+  getMealPlanById: (id: string) => api.get(`/meal-plans/${id}`),
+  createMealPlan: (data: any) => api.post('/meal-plans', data),
+  updateMealPlan: (id: string, data: any) => api.put(`/meal-plans/${id}`, data),
+  deleteMealPlan: (id: string) => api.delete(`/meal-plans/${id}`),
+};
+
 export default api;
 

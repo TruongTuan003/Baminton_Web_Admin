@@ -9,6 +9,7 @@ import UserList from './pages/UserList';
 import UserStatistics from './pages/UserStatistics';
 import ExerciseList from './pages/ExerciseList';
 import MealList from './pages/MealList';
+import MealPlanList from './pages/MealPlanList';
 import SystemStatistics from './pages/SystemStatistics';
 
 const theme = createTheme({
@@ -114,6 +115,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <MealList />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/meal-plans"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <MealPlanList />
             </Layout>
           </ProtectedRoute>
         }

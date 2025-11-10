@@ -29,6 +29,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -46,6 +47,7 @@ const menuItems: MenuItem[] = [
   { text: 'Thống kê người dùng', icon: <BarChartIcon />, path: '/user-statistics' },
   { text: 'Danh sách bài tập', icon: <FitnessCenterIcon />, path: '/exercises' },
   { text: 'Danh sách món ăn', icon: <RestaurantIcon />, path: '/meals' },
+  { text: 'Quản lý thực đơn', icon: <MenuBookIcon />, path: '/meal-plans' },
   { text: 'Thống kê hệ thống', icon: <AnalyticsIcon />, path: '/system-statistics' },
 ];
 
