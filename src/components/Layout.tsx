@@ -30,6 +30,7 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -48,6 +49,7 @@ const menuItems: MenuItem[] = [
   { text: 'Danh sách bài tập', icon: <FitnessCenterIcon />, path: '/exercises' },
   { text: 'Danh sách món ăn', icon: <RestaurantIcon />, path: '/meals' },
   { text: 'Quản lý thực đơn', icon: <MenuBookIcon />, path: '/meal-plans' },
+  { text: 'Quản lý kế hoạch tập', icon: <CalendarTodayIcon />, path: '/training-plans' },
   { text: 'Thống kê hệ thống', icon: <AnalyticsIcon />, path: '/system-statistics' },
 ];
 

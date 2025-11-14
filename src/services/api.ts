@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://192.168.1.19:3000/api';
+const API_URL = 'http://192.168.10.69:3000/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -81,6 +81,16 @@ export const mealPlanAPI = {
   createMealPlan: (data: any) => api.post('/meal-plans', data),
   updateMealPlan: (id: string, data: any) => api.put(`/meal-plans/${id}`, data),
   deleteMealPlan: (id: string) => api.delete(`/meal-plans/${id}`),
+};
+
+export const trainingPlanAPI = {
+  getAllTrainingPlans: () => api.get('/training-plans'),
+  getTrainingPlanById: (id: string) => api.get(`/training-plans/${id}`),
+  getByLevel: (level: string) => api.get(`/training-plans/level/${encodeURIComponent(level)}`),
+  getByGoal: (goal: string) => api.get(`/training-plans/goal/${encodeURIComponent(goal)}`),
+  createTrainingPlan: (data: any) => api.post('/training-plans', data),
+  updateTrainingPlan: (id: string, data: any) => api.put(`/training-plans/${id}`, data),
+  deleteTrainingPlan: (id: string) => api.delete(`/training-plans/${id}`),
 };
 
 export default api;
