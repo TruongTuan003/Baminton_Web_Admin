@@ -46,6 +46,7 @@ interface PlanWorkout {
   day: number; // daily:1-7, weekly:0-6, monthly:1-30
   trainingId: string;
   time?: string;
+  note?: string;
 }
 
 interface TrainingPlan {
@@ -60,6 +61,7 @@ interface TrainingPlan {
     workouts: {
       trainingId: string | { _id: string; title: string };
       time?: string;
+      note?: string;
       order: number;
     }[];
   }[];
@@ -188,6 +190,7 @@ export default function TrainingPlanList() {
           day: planDay.day,
           trainingId: trainingId as string,
           time: workout.time || '07:00',
+          note: workout.note || '',
         });
       });
     });
@@ -226,6 +229,7 @@ export default function TrainingPlanList() {
         day,
         trainingId: '',
         time: '07:00',
+        note: '',
       },
     ]);
   };
@@ -266,7 +270,7 @@ export default function TrainingPlanList() {
       setSaving(true);
       
       // Chuyển đổi planWorkouts thành planDays
-      const planDaysMap: Map<number, { trainingId: string; time?: string; order: number }[]> = new Map();
+      const planDaysMap: Map<number, { trainingId: string; time?: string; note?: string; order: number }[]> = new Map();
       
       validWorkouts.forEach((workout, index) => {
         if (!planDaysMap.has(workout.day)) {
@@ -275,6 +279,7 @@ export default function TrainingPlanList() {
         planDaysMap.get(workout.day)!.push({
           trainingId: workout.trainingId,
           time: workout.time,
+          note: workout.note || undefined,
           order: index,
         });
       });
@@ -529,9 +534,10 @@ export default function TrainingPlanList() {
                   <Table stickyHeader size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell width="20%">Ngày</TableCell>
-                        <TableCell width="50%">Bài tập</TableCell>
-                        <TableCell width="20%">Giờ</TableCell>
+                        <TableCell width="15%">Ngày</TableCell>
+                        <TableCell width="35%">Bài tập</TableCell>
+                        <TableCell width="15%">Giờ</TableCell>
+                        <TableCell width="25%">Ghi chú</TableCell>
                         <TableCell width="10%">Xóa</TableCell>
                       </TableRow>
                     </TableHead>
@@ -568,7 +574,7 @@ export default function TrainingPlanList() {
                                 </Button>
                               </Stack>
                             </TableCell>
-                            <TableCell colSpan={3}>
+                            <TableCell colSpan={4}>
                               {dayWorkouts.length === 0 ? (
                                 <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                                   Chưa có bài tập
@@ -578,7 +584,7 @@ export default function TrainingPlanList() {
                                   <TableBody>
                                     {dayWorkouts.map((workout) => (
                                       <TableRow key={workout.originalIndex}>
-                                        <TableCell width="60%">
+                                        <TableCell width="35%">
                                           <Select
                                             size="small"
                                             fullWidth
@@ -602,12 +608,21 @@ export default function TrainingPlanList() {
                                             )}
                                           </Select>
                                         </TableCell>
-                                        <TableCell width="25%">
+                                        <TableCell width="15%">
                                           <TextField
                                             size="small"
                                             type="time"
                                             value={workout.time || ''}
                                             onChange={(e) => handleWorkoutChange(workout.originalIndex, 'time', e.target.value)}
+                                            fullWidth
+                                          />
+                                        </TableCell>
+                                        <TableCell width="25%">
+                                          <TextField
+                                            size="small"
+                                            placeholder="Ghi chú (tùy chọn)"
+                                            value={workout.note || ''}
+                                            onChange={(e) => handleWorkoutChange(workout.originalIndex, 'note', e.target.value)}
                                             fullWidth
                                           />
                                         </TableCell>
