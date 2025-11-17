@@ -263,6 +263,54 @@ export default function MealList() {
   const columns: GridColDef[] = [
     { field: '_id', headerName: 'ID', width: 90 },
     { field: 'name', headerName: 'Tên món ăn', width: 200, flex: 1 },
+    {
+      field: 'image_url',
+      headerName: 'Hình ảnh',
+      width: 120,
+      renderCell: (params) => {
+        const imageUrl = params.value;
+        if (!imageUrl) {
+          return (
+            <Box
+              sx={{
+                width: 80,
+                height: 80,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#f5f5f5',
+                borderRadius: 1,
+                color: '#999',
+                fontSize: '12px',
+              }}
+            >
+              Không có ảnh
+            </Box>
+          );
+        }
+        return (
+          <Box
+            component="img"
+            src={imageUrl}
+            alt={params.row.name}
+            sx={{
+              width: 80,
+              height: 80,
+              objectFit: 'cover',
+              borderRadius: 1,
+              cursor: 'pointer',
+              '&:hover': {
+                opacity: 0.8,
+              },
+            }}
+            onClick={() => {
+              // Mở hình ảnh trong tab mới khi click
+              window.open(imageUrl, '_blank');
+            }}
+          />
+        );
+      },
+    },
     { field: 'calories', headerName: 'Calories', width: 100 },
     { field: 'protein', headerName: 'Đạm (g)', width: 100 },
     { field: 'fat', headerName: 'Béo (g)', width: 100 },
