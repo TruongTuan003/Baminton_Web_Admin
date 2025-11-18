@@ -566,7 +566,7 @@ export default function ExerciseList() {
           >
             <MenuItem value="Nâng cao kỹ năng cầu lông">Nâng cao kỹ năng cầu lông</MenuItem>
             <MenuItem value="Cải thiện thể chất">Cải thiện thể chất</MenuItem>
-            <MenuItem value="Quản lý thể hình và sức khỏe">Quản lý thể hình và sức khỏe</MenuItem>
+            <MenuItem value="Quản lý hình thể và sức khỏe">Quản lý hình thể và sức khỏe</MenuItem>
           </TextField>
           <TextField
             margin="dense"

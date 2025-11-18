@@ -41,23 +41,31 @@ interface Meal {
 }
 
 interface MealPlanMeal {
-  dayOfWeek?: string; // Cho weekly: "Thứ 2", "Thứ 3", ..., "Chủ nhật"
-  dayNumber?: number; // Cho monthly: 1, 2, 3, ..., 30
+  dayOfWeek?: string;   // weekly
+  dayNumber?: number;   // daily & monthly
   mealType: string;
   mealId: string;
   time?: string;
 }
 
+type MealPlanType = 'daily' | 'weekly' | 'monthly';
+
 interface MealPlan {
   _id: string;
   name: string;
   description?: string;
-  type: 'weekly' | 'monthly';
+  type: MealPlanType;
   goal: string;
   meals: MealPlanMeal[];
   isActive: boolean;
   createdAt: string;
 }
+
+const GOALS = [
+  'Cải thiện thể chất',
+  'Nâng cao kỹ năng cầu lông',
+  'Quản lý hình thể và sức khỏe',
+] as const;
 
 export default function MealPlanList() {
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
@@ -68,7 +76,7 @@ export default function MealPlanList() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    type: 'weekly' as 'weekly' | 'monthly',
+    type: 'weekly' as MealPlanType,
     goal: '',
   });
   const [planMeals, setPlanMeals] = useState<MealPlanMeal[]>([]);
@@ -105,51 +113,60 @@ export default function MealPlanList() {
     }
   };
 
-  // Generate days cho weekly hoặc monthly
-  const generateDays = (type: 'weekly' | 'monthly'): string[] | number[] => {
-    if (type === 'weekly') {
-      return ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
-    } else {
-      return Array.from({ length: 30 }, (_, i) => i + 1);
+  // Generate days cho từng loại
+  const generateDays = (type: MealPlanType): { label: string; value: string | number }[] => {
+    if (type === 'daily') {
+      return [{ label: 'Hôm nay', value: 1 }];
     }
+    if (type === 'weekly') {
+      return [
+        { label: 'Thứ 2', value: 'Thứ 2' },
+        { label: 'Thứ 3', value: 'Thứ 3' },
+        { label: 'Thứ 4', value: 'Thứ 4' },
+        { label: 'Thứ 5', value: 'Thứ 5' },
+        { label: 'Thứ 6', value: 'Thứ 6' },
+        { label: 'Thứ 7', value: 'Thứ 7' },
+        { label: 'Chủ nhật', value: 'Chủ nhật' },
+      ];
+    }
+    // monthly
+    return Array.from({ length: 30 }, (_, i) => ({
+      label: `Ngày ${i + 1}`,
+      value: i + 1,
+    }));
   };
 
-  // Khi type hoặc goal thay đổi, chỉ tạo meals mới nếu đang tạo mới (không có selectedMealPlan)
+  // Tạo khung meals khi thay đổi type hoặc goal (chỉ khi tạo mới)
   useEffect(() => {
-    // Chỉ tạo meals mới khi đang tạo mới (không có selectedMealPlan)
     if (formData.type && formData.goal && !selectedMealPlan) {
       const days = generateDays(formData.type);
       const mealTypes = ['Bữa sáng', 'Bữa trưa', 'Bữa tối', 'Bữa phụ'];
-      
-      // Kiểm tra xem đã có meals chưa (tránh tạo lại khi đã có)
-      const hasMeals = planMeals.length > 0 && planMeals.some(m => 
-        (formData.type === 'weekly' ? m.dayOfWeek : m.dayNumber !== undefined)
-      );
-      
+
+      const hasMeals = planMeals.length > 0;
       if (!hasMeals) {
         const newMeals: MealPlanMeal[] = [];
-        days.forEach((day) => {
-          mealTypes.forEach((mealType) => {
+        days.forEach((d) => {
+          const dayValue = d.value;
+          mealTypes.forEach((mt) => {
             const meal: MealPlanMeal = {
-              mealType,
+              mealType: mt,
               mealId: '',
-              time: mealType === 'Bữa sáng' ? '07:00' : mealType === 'Bữa trưa' ? '12:00' : mealType === 'Bữa tối' ? '18:00' : '15:00',
+              time:
+                mt === 'Bữa sáng' ? '07:00' :
+                mt === 'Bữa trưa' ? '12:00' :
+                mt === 'Bữa tối' ? '18:00' : '15:00',
             };
-            
             if (formData.type === 'weekly') {
-              meal.dayOfWeek = day as string;
+              meal.dayOfWeek = dayValue as string;
             } else {
-              meal.dayNumber = day as number;
+              meal.dayNumber = dayValue as number;
             }
-            
             newMeals.push(meal);
           });
         });
-        
         setPlanMeals(newMeals);
       }
-    } else if (formData.type && !formData.goal && !selectedMealPlan) {
-      // Nếu chưa có goal và không đang edit, clear planMeals
+    } else if (!formData.goal && !selectedMealPlan) {
       setPlanMeals([]);
     }
   }, [formData.type, formData.goal, selectedMealPlan]);
@@ -167,73 +184,71 @@ export default function MealPlanList() {
   };
 
   const handleEdit = async (mealPlan: MealPlan) => {
-    // Set selectedMealPlan trước để useEffect không override
     setSelectedMealPlan(mealPlan);
-    
-    // Chuẩn hóa meals từ backend: đảm bảo mealId là string
+
     const normalizedMeals: MealPlanMeal[] = (mealPlan.meals || []).map((meal: any) => {
-      // Nếu mealId là object (đã populate), lấy _id
       let mealId = meal.mealId;
       if (meal.mealId && typeof meal.mealId === 'object') {
         mealId = meal.mealId._id || meal.mealId;
       }
-      
       return {
         dayOfWeek: meal.dayOfWeek,
         dayNumber: meal.dayNumber,
         mealType: meal.mealType,
         mealId: mealId || '',
-        time: meal.time || (meal.mealType === 'Bữa sáng' ? '07:00' : meal.mealType === 'Bữa trưa' ? '12:00' : meal.mealType === 'Bữa tối' ? '18:00' : '15:00'),
+        time: meal.time || (
+          meal.mealType === 'Bữa sáng' ? '07:00' :
+          meal.mealType === 'Bữa trưa' ? '12:00' :
+          meal.mealType === 'Bữa tối' ? '18:00' : '15:00'
+        ),
       };
     });
-    
-    // Đảm bảo có đủ meals cho tất cả các ngày
+
+    // Đảm bảo đủ khung cho tất cả các ngày
     const days = generateDays(mealPlan.type);
     const mealTypes = ['Bữa sáng', 'Bữa trưa', 'Bữa tối', 'Bữa phụ'];
     const completeMeals: MealPlanMeal[] = [];
-    
-    days.forEach((day) => {
-      mealTypes.forEach((mealType) => {
+
+    days.forEach((d) => {
+      const dayValue = d.value;
+      mealTypes.forEach((mt) => {
         const existing = normalizedMeals.find((m) => {
           if (mealPlan.type === 'weekly') {
-            return m.dayOfWeek === day && m.mealType === mealType;
-          } else {
-            return m.dayNumber === day && m.mealType === mealType;
+            return m.dayOfWeek === dayValue && m.mealType === mt;
           }
+          return m.dayNumber === dayValue && m.mealType === mt;
         });
-        
+
         if (existing) {
           completeMeals.push(existing);
         } else {
-          // Tạo meal mới nếu chưa có
           const newMeal: MealPlanMeal = {
-            mealType,
+            mealType: mt,
             mealId: '',
-            time: mealType === 'Bữa sáng' ? '07:00' : mealType === 'Bữa trưa' ? '12:00' : mealType === 'Bữa tối' ? '18:00' : '15:00',
+            time:
+              mt === 'Bữa sáng' ? '07:00' :
+              mt === 'Bữa trưa' ? '12:00' :
+              mt === 'Bữa tối' ? '18:00' : '15:00',
           };
-          
           if (mealPlan.type === 'weekly') {
-            newMeal.dayOfWeek = day as string;
+            newMeal.dayOfWeek = dayValue as string;
           } else {
-            newMeal.dayNumber = day as number;
+            newMeal.dayNumber = dayValue as number;
           }
-          
           completeMeals.push(newMeal);
         }
       });
     });
-    
-    // Set planMeals với đầy đủ meals
+
     setPlanMeals(completeMeals);
-    
-    // Set formData sau
+
     setFormData({
       name: mealPlan.name,
       description: mealPlan.description || '',
       type: mealPlan.type,
       goal: mealPlan.goal,
     });
-    
+
     setOpenDialog(true);
   };
 
@@ -250,21 +265,19 @@ export default function MealPlanList() {
     }
   };
 
-
-  // Khi goal thay đổi, cập nhật lại planMeals để clear các mealId không phù hợp
+  // Khi đổi goal → xóa mealId không phù hợp
   useEffect(() => {
     if (formData.goal && planMeals.length > 0) {
-      const updatedMeals = planMeals.map(meal => {
-        // Nếu mealId đã chọn nhưng không phù hợp với goal mới, clear nó
+      const updated = planMeals.map((meal) => {
         if (meal.mealId) {
-          const selectedMeal = allMeals.find(m => m._id === meal.mealId);
-          if (selectedMeal && selectedMeal.goal !== formData.goal) {
+          const selected = allMeals.find((m) => m._id === meal.mealId);
+          if (selected && selected.goal !== formData.goal) {
             return { ...meal, mealId: '' };
           }
         }
         return meal;
       });
-      setPlanMeals(updatedMeals);
+      setPlanMeals(updated);
     }
   }, [formData.goal]);
 
@@ -277,8 +290,7 @@ export default function MealPlanList() {
   const handleSave = async () => {
     try {
       setError('');
-      
-      // Validation
+
       if (!formData.name.trim()) {
         setError('Vui lòng nhập tên thực đơn');
         return;
@@ -287,26 +299,15 @@ export default function MealPlanList() {
         setError('Vui lòng chọn mục tiêu');
         return;
       }
-      
-      const validMeals = planMeals.filter(m => {
-        if (!m.mealId || !m.mealType) return false;
-        if (formData.type === 'weekly') {
-          return m.dayOfWeek !== undefined;
-        } else {
-          return m.dayNumber !== undefined;
-        }
-      });
-      
+
+      const validMeals = planMeals.filter((m) => m.mealId && m.mealType);
       if (validMeals.length === 0) {
         setError('Vui lòng chọn ít nhất một món ăn cho thực đơn');
         return;
       }
 
       setSaving(true);
-      const data = {
-        ...formData,
-        meals: validMeals,
-      };
+      const data = { ...formData, meals: validMeals };
 
       if (selectedMealPlan) {
         await mealPlanAPI.updateMealPlan(selectedMealPlan._id, data);
@@ -319,12 +320,7 @@ export default function MealPlanList() {
       await fetchMealPlans();
       setOpenDialog(false);
       setSelectedMealPlan(null);
-      setFormData({
-        name: '',
-        description: '',
-        type: 'weekly',
-        goal: '',
-      });
+      setFormData({ name: '', description: '', type: 'weekly', goal: '' });
       setPlanMeals([]);
     } catch (err: any) {
       const errorMessage = err?.response?.data?.message || err?.message || 'Không thể lưu thực đơn';
@@ -339,28 +335,33 @@ export default function MealPlanList() {
     {
       field: 'type',
       headerName: 'Loại',
-      width: 120,
+      width: 130,
       renderCell: (params) => (
         <Chip
-          label={params.value === 'weekly' ? 'Theo tuần' : 'Theo tháng'}
+          label={
+            params.value === 'daily' ? 'Theo ngày' :
+            params.value === 'weekly' ? 'Theo tuần' : 'Theo tháng'
+          }
           size="small"
-          color={params.value === 'weekly' ? 'primary' : 'secondary'}
+          color={
+            params.value === 'daily' ? 'success' :
+            params.value === 'weekly' ? 'primary' : 'secondary'
+          }
+          variant="outlined"
         />
       ),
     },
     {
       field: 'goal',
       headerName: 'Mục tiêu',
-      width: 150,
-      renderCell: (params) => (
-        <Chip label={params.value} size="small" variant="outlined" />
-      ),
+      width: 220,
+      renderCell: (params) => <Chip label={params.value} size="small" variant="outlined" />,
     },
     {
       field: 'meals',
       headerName: 'Số bữa ăn',
       width: 120,
-      valueGetter: (value: MealPlanMeal[]) => (value && Array.isArray(value) ? value.length : 0),
+      valueGetter: (value: MealPlanMeal[]) => (value ? value.length : 0),
     },
     {
       field: 'isActive',
@@ -380,22 +381,11 @@ export default function MealPlanList() {
       headerName: 'Thao tác',
       width: 120,
       getActions: (params) => [
-        <GridActionsCellItem
-          icon={<EditIcon />}
-          label="Sửa"
-          onClick={() => handleEdit(params.row)}
-        />,
-        <GridActionsCellItem
-          icon={<DeleteIcon />}
-          label="Xóa"
-          onClick={() => handleDelete(params.row._id)}
-          showInMenu
-        />,
+        <GridActionsCellItem icon={<EditIcon />} label="Sửa" onClick={() => handleEdit(params.row)} />,
+        <GridActionsCellItem icon={<DeleteIcon />} label="Xóa" onClick={() => handleDelete(params.row._id)} showInMenu />,
       ],
     },
   ];
-
-  const goals = ['Giảm cân', 'Tăng cơ', 'Duy trì sức khỏe'];
 
   return (
     <Box>
@@ -436,21 +426,13 @@ export default function MealPlanList() {
             columns={columns}
             getRowId={(row) => row._id}
             pageSizeOptions={[10, 25, 50]}
-            initialState={{
-              pagination: {
-                paginationModel: { pageSize: 10 },
-              },
-            }}
-            sx={{
-              '& .MuiDataGrid-cell:focus': {
-                outline: 'none',
-              },
-            }}
+            initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+            sx={{ '& .MuiDataGrid-cell:focus': { outline: 'none' } }}
           />
         )}
       </Paper>
 
-      {/* Dialog tạo/sửa thực đơn */}
+      {/* Dialog tạo/sửa */}
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="lg" fullWidth>
         <DialogTitle>{selectedMealPlan ? 'Sửa thực đơn' : 'Tạo thực đơn mới'}</DialogTitle>
         <DialogContent>
@@ -477,8 +459,9 @@ export default function MealPlanList() {
                   <Select
                     value={formData.type}
                     label="Loại thực đơn *"
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value as 'weekly' | 'monthly' })}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as MealPlanType })}
                   >
+                    <MenuItem value="daily">Theo ngày</MenuItem>
                     <MenuItem value="weekly">Theo tuần</MenuItem>
                     <MenuItem value="monthly">Theo tháng</MenuItem>
                   </Select>
@@ -490,9 +473,9 @@ export default function MealPlanList() {
                     label="Mục tiêu *"
                     onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
                   >
-                    {goals.map((goal) => (
-                      <MenuItem key={goal} value={goal}>
-                        {goal}
+                    {GOALS.map((g) => (
+                      <MenuItem key={g} value={g}>
+                        {g}
                       </MenuItem>
                     ))}
                   </Select>
@@ -503,13 +486,20 @@ export default function MealPlanList() {
             {formData.type && formData.goal && (
               <Box sx={{ mt: 3 }}>
                 <Typography variant="h6" sx={{ mb: 2 }}>
-                  Chọn món ăn cho {formData.type === 'weekly' ? 'từng ngày trong tuần' : 'từng ngày trong tháng'}
+                  Chọn món ăn cho{' '}
+                  {formData.type === 'daily'
+                    ? 'ngày hôm nay'
+                    : formData.type === 'weekly'
+                    ? 'từng ngày trong tuần'
+                    : 'từng ngày trong tháng'}
                 </Typography>
-                <TableContainer component={Paper} sx={{ maxHeight: 400, overflow: 'auto' }}>
+                <TableContainer component={Paper} sx={{ maxHeight: 500, overflow: 'auto' }}>
                   <Table stickyHeader size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell>{formData.type === 'weekly' ? 'Thứ' : 'Ngày'}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>
+                          {formData.type === 'daily' ? 'Ngày' : formData.type === 'weekly' ? 'Thứ' : 'Ngày'}
+                        </TableCell>
                         <TableCell>Bữa sáng</TableCell>
                         <TableCell>Bữa trưa</TableCell>
                         <TableCell>Bữa tối</TableCell>
@@ -517,70 +507,59 @@ export default function MealPlanList() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {generateDays(formData.type).map((day) => {
+                      {generateDays(formData.type).map((dayObj) => {
+                        const dayValue = dayObj.value;
+                        const dayLabel = dayObj.label;
+
                         const mealTypes = ['Bữa sáng', 'Bữa trưa', 'Bữa tối', 'Bữa phụ'];
+
                         return (
-                          <TableRow key={day}>
-                            <TableCell>
-                              {formData.type === 'weekly' ? day : `Ngày ${day}`}
-                            </TableCell>
+                          <TableRow key={dayValue}>
+                            <TableCell sx={{ fontWeight: 600 }}>{dayLabel}</TableCell>
                             {mealTypes.map((mealType) => {
                               const meal = planMeals.find((m) => {
-                                if (formData.type === 'weekly') {
-                                  return m.dayOfWeek === day && m.mealType === mealType;
-                                } else {
-                                  return m.dayNumber === day && m.mealType === mealType;
+                                if (formData.type === 'daily' || formData.type === 'monthly') {
+                                  return m.dayNumber === dayValue && m.mealType === mealType;
                                 }
+                                return m.dayOfWeek === dayValue && m.mealType === mealType;
                               });
-                              
+
                               const index = planMeals.findIndex((m) => {
-                                if (formData.type === 'weekly') {
-                                  return m.dayOfWeek === day && m.mealType === mealType;
-                                } else {
-                                  return m.dayNumber === day && m.mealType === mealType;
+                                if (formData.type === 'daily' || formData.type === 'monthly') {
+                                  return m.dayNumber === dayValue && m.mealType === mealType;
                                 }
+                                return m.dayOfWeek === dayValue && m.mealType === mealType;
                               });
-                              
-                              // Filter meals: theo mealType và goal
-                              let filteredMeals = allMeals.filter(
-                                (m) => m.mealType === mealType
-                              );
-                              
+
+                              let filteredMeals = allMeals.filter((m) => m.mealType === mealType);
                               if (formData.goal) {
-                                filteredMeals = filteredMeals.filter(
-                                  (m) => m.goal === formData.goal
-                                );
+                                filteredMeals = filteredMeals.filter((m) => m.goal === formData.goal);
                               }
 
                               return (
-                                <TableCell key={mealType}>
+                                <TableCell key={mealType} sx={{ py: 0.5 }}>
                                   <Select
                                     size="small"
                                     fullWidth
                                     value={meal?.mealId || ''}
                                     onChange={(e) => {
+                                      const newId = e.target.value;
                                       if (index >= 0) {
-                                        handleMealChange(index, 'mealId', e.target.value);
+                                        handleMealChange(index, 'mealId', newId);
                                       } else {
                                         const newMeal: MealPlanMeal = {
                                           mealType,
-                                          mealId: e.target.value,
+                                          mealId: newId,
                                           time:
-                                            mealType === 'Bữa sáng'
-                                              ? '07:00'
-                                              : mealType === 'Bữa trưa'
-                                              ? '12:00'
-                                              : mealType === 'Bữa tối'
-                                              ? '18:00'
-                                              : '15:00',
+                                            mealType === 'Bữa sáng' ? '07:00' :
+                                            mealType === 'Bữa trưa' ? '12:00' :
+                                            mealType === 'Bữa tối' ? '18:00' : '15:00',
                                         };
-                                        
                                         if (formData.type === 'weekly') {
-                                          newMeal.dayOfWeek = day as string;
+                                          newMeal.dayOfWeek = dayValue as string;
                                         } else {
-                                          newMeal.dayNumber = day as number;
+                                          newMeal.dayNumber = dayValue as number;
                                         }
-                                        
                                         setPlanMeals([...planMeals, newMeal]);
                                       }
                                     }}
@@ -627,4 +606,3 @@ export default function MealPlanList() {
     </Box>
   );
 }
-

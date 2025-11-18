@@ -543,9 +543,9 @@ export default function MealList() {
             onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
             sx={{ mb: 2 }}
           >
-            <MenuItem value="Giảm cân">Giảm cân</MenuItem>
-            <MenuItem value="Tăng cơ">Tăng cơ</MenuItem>
-            <MenuItem value="Duy trì sức khỏe">Duy trì sức khỏe</MenuItem>
+            <MenuItem value="Cải thiện thể chất">Cải thiện thể chất</MenuItem>
+            <MenuItem value="Nâng cao kỹ năng cầu lông">Nâng cao kỹ năng cầu lông</MenuItem>
+            <MenuItem value="Quản lý hình thể và sức khỏe">Quản lý hình thể và sức khỏe</MenuItem>
           </TextField>
           {/* Upload Hình ảnh */}
           <Box sx={{ mb: 2 }}>
