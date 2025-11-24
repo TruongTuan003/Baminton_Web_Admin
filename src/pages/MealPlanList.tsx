@@ -23,6 +23,7 @@ import {
   Select,
   FormControl,
   InputLabel,
+  OutlinedInput,
 } from '@mui/material';
 import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid';
 import type { GridColDef } from '@mui/x-data-grid';
@@ -55,7 +56,8 @@ interface MealPlan {
   name: string;
   description?: string;
   type: MealPlanType;
-  goal: string;
+  goals: string[];
+  goal?: string; // For backward compatibility with old data
   meals: MealPlanMeal[];
   isActive: boolean;
   createdAt: string;
@@ -77,7 +79,7 @@ export default function MealPlanList() {
     name: '',
     description: '',
     type: 'weekly' as MealPlanType,
-    goal: '',
+    goals: [] as string[],
   });
   const [planMeals, setPlanMeals] = useState<MealPlanMeal[]>([]);
   const [error, setError] = useState('');
@@ -136,9 +138,9 @@ export default function MealPlanList() {
     }));
   };
 
-  // Tạo khung meals khi thay đổi type hoặc goal (chỉ khi tạo mới)
+  // Tạo khung meals khi thay đổi type hoặc goals (chỉ khi tạo mới)
   useEffect(() => {
-    if (formData.type && formData.goal && !selectedMealPlan) {
+    if (formData.type && formData.goals.length > 0 && !selectedMealPlan) {
       const days = generateDays(formData.type);
       const mealTypes = ['Bữa sáng', 'Bữa trưa', 'Bữa tối', 'Bữa phụ'];
 
@@ -166,10 +168,10 @@ export default function MealPlanList() {
         });
         setPlanMeals(newMeals);
       }
-    } else if (!formData.goal && !selectedMealPlan) {
+    } else if (formData.goals.length === 0 && !selectedMealPlan) {
       setPlanMeals([]);
     }
-  }, [formData.type, formData.goal, selectedMealPlan]);
+  }, [formData.type, formData.goals, selectedMealPlan]);
 
   const handleAdd = () => {
     setSelectedMealPlan(null);
@@ -177,7 +179,7 @@ export default function MealPlanList() {
       name: '',
       description: '',
       type: 'weekly',
-      goal: '',
+      goals: [],
     });
     setPlanMeals([]);
     setOpenDialog(true);
@@ -246,7 +248,7 @@ export default function MealPlanList() {
       name: mealPlan.name,
       description: mealPlan.description || '',
       type: mealPlan.type,
-      goal: mealPlan.goal,
+      goals: Array.isArray(mealPlan.goals) ? mealPlan.goals : mealPlan.goal ? [mealPlan.goal] : [],
     });
 
     setOpenDialog(true);
@@ -265,13 +267,13 @@ export default function MealPlanList() {
     }
   };
 
-  // Khi đổi goal → xóa mealId không phù hợp
+  // Khi đổi goals → xóa mealId không phù hợp
   useEffect(() => {
-    if (formData.goal && planMeals.length > 0) {
+    if (formData.goals.length > 0 && planMeals.length > 0) {
       const updated = planMeals.map((meal) => {
         if (meal.mealId) {
           const selected = allMeals.find((m) => m._id === meal.mealId);
-          if (selected && selected.goal !== formData.goal) {
+          if (selected && !formData.goals.includes(selected.goal)) {
             return { ...meal, mealId: '' };
           }
         }
@@ -279,7 +281,7 @@ export default function MealPlanList() {
       });
       setPlanMeals(updated);
     }
-  }, [formData.goal]);
+  }, [formData.goals]);
 
   const handleMealChange = (index: number, field: keyof MealPlanMeal, value: string) => {
     const updated = [...planMeals];
@@ -295,8 +297,8 @@ export default function MealPlanList() {
         setError('Vui lòng nhập tên thực đơn');
         return;
       }
-      if (!formData.goal) {
-        setError('Vui lòng chọn mục tiêu');
+      if (formData.goals.length === 0) {
+        setError('Vui lòng chọn ít nhất một mục tiêu');
         return;
       }
 
@@ -320,7 +322,7 @@ export default function MealPlanList() {
       await fetchMealPlans();
       setOpenDialog(false);
       setSelectedMealPlan(null);
-      setFormData({ name: '', description: '', type: 'weekly', goal: '' });
+      setFormData({ name: '', description: '', type: 'weekly', goals: [] });
       setPlanMeals([]);
     } catch (err: any) {
       const errorMessage = err?.response?.data?.message || err?.message || 'Không thể lưu thực đơn';
@@ -352,10 +354,25 @@ export default function MealPlanList() {
       ),
     },
     {
-      field: 'goal',
+      field: 'goals',
       headerName: 'Mục tiêu',
-      width: 220,
-      renderCell: (params) => <Chip label={params.value} size="small" variant="outlined" />,
+      width: 300,
+      renderCell: (params) => {
+        const goals = Array.isArray(params.value) ? params.value : params.row.goal ? [params.row.goal] : [];
+        return (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {goals.length > 0 ? (
+              goals.map((goal: string, index: number) => (
+                <Chip key={index} label={goal} size="small" variant="outlined" />
+              ))
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Chưa có
+              </Typography>
+            )}
+          </Box>
+        );
+      },
     },
     {
       field: 'meals',
@@ -469,9 +486,21 @@ export default function MealPlanList() {
                 <FormControl fullWidth required>
                   <InputLabel>Mục tiêu *</InputLabel>
                   <Select
-                    value={formData.goal}
+                    multiple
+                    value={formData.goals}
                     label="Mục tiêu *"
-                    onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
+                    onChange={(e) => {
+                      const value = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+                      setFormData({ ...formData, goals: value });
+                    }}
+                    input={<OutlinedInput label="Mục tiêu *" />}
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => (
+                          <Chip key={value} label={value} size="small" />
+                        ))}
+                      </Box>
+                    )}
                   >
                     {GOALS.map((g) => (
                       <MenuItem key={g} value={g}>
@@ -483,7 +512,7 @@ export default function MealPlanList() {
               </Box>
             </Box>
 
-            {formData.type && formData.goal && (
+            {formData.type && formData.goals.length > 0 && (
               <Box sx={{ mt: 3 }}>
                 <Typography variant="h6" sx={{ mb: 2 }}>
                   Chọn món ăn cho{' '}
@@ -532,8 +561,8 @@ export default function MealPlanList() {
                               });
 
                               let filteredMeals = allMeals.filter((m) => m.mealType === mealType);
-                              if (formData.goal) {
-                                filteredMeals = filteredMeals.filter((m) => m.goal === formData.goal);
+                              if (formData.goals.length > 0) {
+                                filteredMeals = filteredMeals.filter((m) => formData.goals.includes(m.goal));
                               }
 
                               return (
@@ -564,10 +593,10 @@ export default function MealPlanList() {
                                       }
                                     }}
                                     displayEmpty
-                                    disabled={!formData.goal}
+                                    disabled={formData.goals.length === 0}
                                   >
                                     <MenuItem value="">
-                                      <em>{formData.goal ? 'Chọn món' : 'Chọn mục tiêu trước'}</em>
+                                      <em>{formData.goals.length > 0 ? 'Chọn món' : 'Chọn mục tiêu trước'}</em>
                                     </MenuItem>
                                     {filteredMeals.length > 0 ? (
                                       filteredMeals.map((m) => (
