@@ -393,6 +393,27 @@ export default function MealPlanList() {
       ),
     },
     {
+      field: 'createdAt',
+      headerName: 'Ngày tạo',
+      width: 180,
+      renderCell: (params) => {
+        if (!params.value) return '-';
+        const date = new Date(params.value);
+        const formattedDate = date.toLocaleDateString('vi-VN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        return (
+          <Typography variant="body2">
+            {formattedDate}
+          </Typography>
+        );
+      },
+    },
+    {
       field: 'actions',
       type: 'actions',
       headerName: 'Thao tác',
