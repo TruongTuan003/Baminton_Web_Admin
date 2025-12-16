@@ -42,10 +42,10 @@ interface Meal {
 }
 
 interface MealPlanMeal {
-  dayOfWeek?: string;   // weekly
-  dayNumber?: number;   // daily & monthly
+  dayOfWeek?: string;
+  dayNumber?: number;
   mealType: string;
-  mealId: string;
+  mealId: string | Meal;
   time?: string;
 }
 
@@ -57,7 +57,7 @@ interface MealPlan {
   description?: string;
   type: MealPlanType;
   goals: string[];
-  goal?: string; // For backward compatibility with old data
+  goal?: string;
   meals: MealPlanMeal[];
   isActive: boolean;
   createdAt: string;
@@ -96,7 +96,26 @@ export default function MealPlanList() {
       setLoading(true);
       setError('');
       const response = await mealPlanAPI.getAllMealPlans();
-      setMealPlans(response.data || []);
+      
+      // Backend trả về trực tiếp array (không có wrapper)
+      const mealPlansData = Array.isArray(response.data) 
+        ? response.data 
+        : Array.isArray(response) 
+        ? response 
+        : [];
+      
+      console.log('📦 Fetched meal plans:', mealPlansData);
+      console.log('📦 Total:', mealPlansData.length);
+      
+      // Log sample để check structure
+      if (mealPlansData.length > 0) {
+        console.log('📦 Sample meal plan:', mealPlansData[0]);
+        if (mealPlansData[0].meals && mealPlansData[0].meals.length > 0) {
+          console.log('📦 Sample meal:', mealPlansData[0].meals[0]);
+        }
+      }
+      
+      setMealPlans(mealPlansData);
     } catch (err: any) {
       const errorMessage = err?.response?.data?.message || err?.message || 'Không thể tải danh sách thực đơn';
       setError(errorMessage);
@@ -108,14 +127,73 @@ export default function MealPlanList() {
 
   const fetchMeals = async () => {
     try {
+      console.log('=== FETCHING ALL MEALS ===');
       const response = await mealAPI.getAllMeals();
-      setAllMeals(response.data || []);
+      console.log('📥 Meals response:', response);
+      
+      // Backend trả về trực tiếp array hoặc { data: array }
+      const mealsData = Array.isArray(response.data) 
+        ? response.data 
+        : Array.isArray(response) 
+        ? response 
+        : [];
+      
+      console.log('📥 Meals data:', mealsData);
+      console.log('📥 Total meals loaded:', mealsData.length);
+      
+      setAllMeals(mealsData);
     } catch (err) {
-      console.error('Error fetching meals:', err);
+      console.error('❌ Error fetching meals:', err);
     }
   };
 
-  // Generate days cho từng loại
+  // Helper: Normalize mealId từ object hoặc string
+  const normalizeMealId = (mealId: string | Meal | any): string => {
+    console.log('🔍 normalizeMealId input:', mealId);
+    console.log('🔍 mealId type:', typeof mealId);
+    
+    if (!mealId) {
+      console.log('❌ mealId is falsy');
+      return '';
+    }
+    
+    if (typeof mealId === 'string') {
+      console.log('✅ mealId is string:', mealId);
+      return mealId;
+    }
+    
+    if (typeof mealId === 'object') {
+      console.log('🔍 mealId is object, checking _id...');
+      console.log('🔍 mealId._id:', mealId._id);
+      console.log('🔍 mealId.id:', mealId.id);
+      
+      if (mealId._id) {
+        console.log('✅ Found _id:', mealId._id);
+        return mealId._id;
+      }
+      if (mealId.id) {
+        console.log('✅ Found id:', mealId.id);
+        return mealId.id;
+      }
+      
+      console.log('❌ Object has no _id or id');
+    }
+    
+    console.log('❌ Cannot normalize, returning empty string');
+    return '';
+  };
+
+  // Helper: Normalize goals (xử lý cả goal số ít và goals số nhiều)
+  const normalizeGoals = (mealPlan: MealPlan): string[] => {
+    if (Array.isArray(mealPlan.goals) && mealPlan.goals.length > 0) {
+      return mealPlan.goals;
+    }
+    if (mealPlan.goal) {
+      return [mealPlan.goal];
+    }
+    return [];
+  };
+
   const generateDays = (type: MealPlanType): { label: string; value: string | number }[] => {
     if (type === 'daily') {
       return [{ label: 'Hôm nay', value: 1 }];
@@ -131,14 +209,13 @@ export default function MealPlanList() {
         { label: 'Chủ nhật', value: 'Chủ nhật' },
       ];
     }
-    // monthly
     return Array.from({ length: 30 }, (_, i) => ({
       label: `Ngày ${i + 1}`,
       value: i + 1,
     }));
   };
 
-  // Tạo khung meals khi thay đổi type hoặc goals (chỉ khi tạo mới)
+  // Tạo khung meals khi thay đổi type hoặc goals
   useEffect(() => {
     if (formData.type && formData.goals.length > 0 && !selectedMealPlan) {
       const days = generateDays(formData.type);
@@ -185,19 +262,51 @@ export default function MealPlanList() {
     setOpenDialog(true);
   };
 
-  const handleEdit = async (mealPlan: MealPlan) => {
+  const handleEdit = (mealPlanId: string) => {
+    // Tìm meal plan từ state thay vì dùng params.row từ DataGrid
+    const mealPlan = mealPlans.find(mp => mp._id === mealPlanId);
+    
+    if (!mealPlan) {
+      console.error('❌ Không tìm thấy meal plan với ID:', mealPlanId);
+      setError('Không tìm thấy thực đơn');
+      return;
+    }
+    
+    console.log('=== EDIT MEAL PLAN ===');
+    console.log('MealPlan ID:', mealPlanId);
+    console.log('Found mealPlan from state:', mealPlan);
+    console.log('Original meals:', mealPlan.meals);
+    
     setSelectedMealPlan(mealPlan);
 
-    const normalizedMeals: MealPlanMeal[] = (mealPlan.meals || []).map((meal: any) => {
-      let mealId = meal.mealId;
-      if (meal.mealId && typeof meal.mealId === 'object') {
-        mealId = meal.mealId._id || meal.mealId;
+    // Normalize goals
+    const normalizedGoals = normalizeGoals(mealPlan);
+    console.log('Normalized goals:', normalizedGoals);
+
+    // Normalize meals với mealId
+    const normalizedMeals: MealPlanMeal[] = (mealPlan.meals || []).map((meal: any, index: number) => {
+      console.log(`\n--- Processing meal ${index} ---`);
+      console.log('Raw meal:', meal);
+      console.log('meal.mealId:', meal.mealId);
+      
+      const mealId = normalizeMealId(meal.mealId);
+      console.log('Final normalized mealId:', mealId);
+      
+      // Cảnh báo nếu mealId rỗng
+      if (!mealId) {
+        console.warn('⚠️ WARNING: Meal has empty mealId!', {
+          index,
+          mealType: meal.mealType,
+          dayOfWeek: meal.dayOfWeek,
+          dayNumber: meal.dayNumber,
+        });
       }
+      
       return {
         dayOfWeek: meal.dayOfWeek,
         dayNumber: meal.dayNumber,
         mealType: meal.mealType,
-        mealId: mealId || '',
+        mealId: mealId,
         time: meal.time || (
           meal.mealType === 'Bữa sáng' ? '07:00' :
           meal.mealType === 'Bữa trưa' ? '12:00' :
@@ -206,7 +315,14 @@ export default function MealPlanList() {
       };
     });
 
-    // Đảm bảo đủ khung cho tất cả các ngày
+    console.log('Normalized meals:', normalizedMeals);
+    
+    // Đếm số meal có ID và không có ID
+    const mealsWithId = normalizedMeals.filter(m => m.mealId).length;
+    const mealsWithoutId = normalizedMeals.filter(m => !m.mealId).length;
+    console.log(`📊 Meals with ID: ${mealsWithId}, without ID: ${mealsWithoutId}`);
+
+    // Tạo khung đầy đủ cho tất cả các ngày
     const days = generateDays(mealPlan.type);
     const mealTypes = ['Bữa sáng', 'Bữa trưa', 'Bữa tối', 'Bữa phụ'];
     const completeMeals: MealPlanMeal[] = [];
@@ -243,14 +359,23 @@ export default function MealPlanList() {
     });
 
     setPlanMeals(completeMeals);
+    console.log('Complete meals with all days:', completeMeals);
+    
+    // Hiển thị thông báo nếu có meal không có ID
+    const emptyMeals = completeMeals.filter(m => !m.mealId).length;
+    if (emptyMeals > 0) {
+      console.warn(`⚠️ ${emptyMeals} meals không có mealId. Backend có thể chưa populate hoặc dữ liệu bị thiếu.`);
+      setError(`⚠️ Cảnh báo: ${emptyMeals} bữa ăn chưa có món. Vui lòng chọn lại món ăn cho các bữa này.`);
+    }
 
     setFormData({
       name: mealPlan.name,
       description: mealPlan.description || '',
       type: mealPlan.type,
-      goals: Array.isArray(mealPlan.goals) ? mealPlan.goals : mealPlan.goal ? [mealPlan.goal] : [],
+      goals: normalizedGoals,
     });
 
+    console.log('=== END EDIT MEAL PLAN ===');
     setOpenDialog(true);
   };
 
@@ -266,22 +391,6 @@ export default function MealPlanList() {
       }
     }
   };
-
-  // Khi đổi goals → xóa mealId không phù hợp
-  useEffect(() => {
-    if (formData.goals.length > 0 && planMeals.length > 0) {
-      const updated = planMeals.map((meal) => {
-        if (meal.mealId) {
-          const selected = allMeals.find((m) => m._id === meal.mealId);
-          if (selected && !formData.goals.includes(selected.goal)) {
-            return { ...meal, mealId: '' };
-          }
-        }
-        return meal;
-      });
-      setPlanMeals(updated);
-    }
-  }, [formData.goals]);
 
   const handleMealChange = (index: number, field: keyof MealPlanMeal, value: string) => {
     const updated = [...planMeals];
@@ -302,7 +411,15 @@ export default function MealPlanList() {
         return;
       }
 
-      const validMeals = planMeals.filter((m) => m.mealId && m.mealType);
+      // Normalize mealId trước khi lưu
+      const validMeals = planMeals
+        .filter((m) => m.mealType)
+        .map((m) => ({
+          ...m,
+          mealId: normalizeMealId(m.mealId),
+        }))
+        .filter((m) => m.mealId);
+
       if (validMeals.length === 0) {
         setError('Vui lòng chọn ít nhất một món ăn cho thực đơn');
         return;
@@ -358,7 +475,7 @@ export default function MealPlanList() {
       headerName: 'Mục tiêu',
       width: 300,
       renderCell: (params) => {
-        const goals = Array.isArray(params.value) ? params.value : params.row.goal ? [params.row.goal] : [];
+        const goals = normalizeGoals(params.row);
         return (
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
             {goals.length > 0 ? (
@@ -419,8 +536,17 @@ export default function MealPlanList() {
       headerName: 'Thao tác',
       width: 120,
       getActions: (params) => [
-        <GridActionsCellItem icon={<EditIcon />} label="Sửa" onClick={() => handleEdit(params.row)} />,
-        <GridActionsCellItem icon={<DeleteIcon />} label="Xóa" onClick={() => handleDelete(params.row._id)} showInMenu />,
+        <GridActionsCellItem 
+          icon={<EditIcon />} 
+          label="Sửa" 
+          onClick={() => handleEdit(params.row._id)}  // Truyền ID thay vì object
+        />,
+        <GridActionsCellItem 
+          icon={<DeleteIcon />} 
+          label="Xóa" 
+          onClick={() => handleDelete(params.row._id)} 
+          showInMenu 
+        />,
       ],
     },
   ];
@@ -560,7 +686,6 @@ export default function MealPlanList() {
                       {generateDays(formData.type).map((dayObj) => {
                         const dayValue = dayObj.value;
                         const dayLabel = dayObj.label;
-
                         const mealTypes = ['Bữa sáng', 'Bữa trưa', 'Bữa tối', 'Bữa phụ'];
 
                         return (
@@ -581,17 +706,23 @@ export default function MealPlanList() {
                                 return m.dayOfWeek === dayValue && m.mealType === mealType;
                               });
 
-                              let filteredMeals = allMeals.filter((m) => m.mealType === mealType);
-                              if (formData.goals.length > 0) {
-                                filteredMeals = filteredMeals.filter((m) => formData.goals.includes(m.goal));
-                              }
+                              // Bỏ lọc theo goals - hiển thị tất cả món ăn theo mealType
+                              const filteredMeals = allMeals.filter((m) => m.mealType === mealType);
+
+                              const currentMealId = normalizeMealId(meal?.mealId);
+                              
+                              console.log(`Day: ${dayLabel}, MealType: ${mealType}`);
+                              console.log('Found meal:', meal);
+                              console.log('Current mealId:', currentMealId);
+                              console.log('Filtered meals count:', filteredMeals.length);
+                              console.log('All meals count:', allMeals.length);
 
                               return (
                                 <TableCell key={mealType} sx={{ py: 0.5 }}>
                                   <Select
                                     size="small"
                                     fullWidth
-                                    value={meal?.mealId || ''}
+                                    value={currentMealId || ''}
                                     onChange={(e) => {
                                       const newId = e.target.value;
                                       if (index >= 0) {
@@ -614,10 +745,9 @@ export default function MealPlanList() {
                                       }
                                     }}
                                     displayEmpty
-                                    disabled={formData.goals.length === 0}
                                   >
                                     <MenuItem value="">
-                                      <em>{formData.goals.length > 0 ? 'Chọn món' : 'Chọn mục tiêu trước'}</em>
+                                      <em>Chọn món</em>
                                     </MenuItem>
                                     {filteredMeals.length > 0 ? (
                                       filteredMeals.map((m) => (

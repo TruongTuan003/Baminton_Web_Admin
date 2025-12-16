@@ -90,7 +90,6 @@ export default function UserList() {
     { field: '_id', headerName: 'ID', width: 90 },
     { field: 'name', headerName: 'Tên', width: 200, flex: 1 },
     { field: 'email', headerName: 'Email', width: 250, flex: 1 },
-    { field: 'phone', headerName: 'Số điện thoại', width: 150 },
     { field: 'role', headerName: 'Vai trò', width: 120 },
     {
       field: 'status',
@@ -213,15 +212,6 @@ export default function UserList() {
                 fullWidth
                 variant="outlined"
                 value={selectedUser.email || ''}
-                InputProps={{ readOnly: true }}
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                margin="dense"
-                label="Số điện thoại"
-                fullWidth
-                variant="outlined"
-                value={selectedUser.phone || ''}
                 InputProps={{ readOnly: true }}
                 sx={{ mb: 2 }}
               />
