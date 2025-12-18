@@ -4,14 +4,14 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
+import SystemStatistics from './pages/SystemStatistics';
 import UserList from './pages/UserList';
 import UserStatistics from './pages/UserStatistics';
 import ExerciseList from './pages/ExerciseList';
 import MealList from './pages/MealList';
 import MealPlanList from './pages/MealPlanList';
 import TrainingPlanList from './pages/TrainingPlanList';
-import SystemStatistics from './pages/SystemStatistics';
+
 
 const theme = createTheme({
   palette: {
