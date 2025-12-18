@@ -65,7 +65,7 @@ export default function SystemStatistics() {
     return (
       <Box>
         <Typography variant="h4" gutterBottom sx={{ mb: 4, fontWeight: 700 }}>
-          Thống kê hệ thống
+        Dashboard
         </Typography>
         <Alert severity="error">{error}</Alert>
       </Box>
@@ -76,7 +76,7 @@ export default function SystemStatistics() {
     return (
       <Box>
         <Typography variant="h4" gutterBottom sx={{ mb: 4, fontWeight: 700 }}>
-          Thống kê hệ thống
+        Dashboard
         </Typography>
         <Alert severity="info">Không có dữ liệu thống kê</Alert>
       </Box>
@@ -87,7 +87,7 @@ export default function SystemStatistics() {
   return (
     <Box>
       <Typography variant="h4" gutterBottom sx={{ mb: 4, fontWeight: 700 }}>
-        Thống kê hệ thống
+      Dashboard
       </Typography>
 
       <Box

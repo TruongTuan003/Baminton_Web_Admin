@@ -50,7 +50,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/system-statistics" replace />;
   }
 
   return <>{children}</>;
@@ -65,17 +65,17 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Layout>
-              <Navigate to="/dashboard" replace />
+              <Navigate to="/system-statistics" replace />
             </Layout>
           </ProtectedRoute>
         }
       />
       <Route
-        path="/dashboard"
+        path="/system-statistics"
         element={
           <ProtectedRoute>
             <Layout>
-              <Dashboard />
+              <SystemStatistics />
             </Layout>
           </ProtectedRoute>
         }

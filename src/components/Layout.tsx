@@ -43,14 +43,14 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+  { text: 'Dashboard', icon: <AnalyticsIcon />, path: '/system-statistics' },
   { text: 'Danh sách người dùng', icon: <PeopleIcon />, path: '/users' },
   { text: 'Thống kê người dùng', icon: <BarChartIcon />, path: '/user-statistics' },
   { text: 'Danh sách bài tập', icon: <FitnessCenterIcon />, path: '/exercises' },
   { text: 'Danh sách món ăn', icon: <RestaurantIcon />, path: '/meals' },
   { text: 'Quản lý thực đơn', icon: <MenuBookIcon />, path: '/meal-plans' },
   { text: 'Quản lý kế hoạch tập', icon: <CalendarTodayIcon />, path: '/training-plans' },
-  { text: 'Thống kê hệ thống', icon: <AnalyticsIcon />, path: '/system-statistics' },
+  // { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
 ];
 
 interface LayoutProps {
